@@ -218,7 +218,7 @@
         redoChanges(e) {
             e.changedArrows.forEach((([e, t], s) => {
                 const [i, n] = s.split(",").map((e => parseInt(e, 10)));
-                0 === t.type ? (this.gameMap.removeArrow(i, n, !0), this.selectedMap.deselect(i, n)) : (this.gameMap.resetArrow(i, n, !0), this.gameMap.setArrowType(i, n, t.type, !0), this.gameMap.setArrowRotation(i, n, t.rotation, !0), this.gameMap.setArrowFlipped(i, n, t.flipped, !0), this.gameMap.getArrow(i, n).layer = e.layer)
+                0 === t.type ? (this.gameMap.removeArrow(i, n, !0), this.selectedMap.deselect(i, n)) : (this.gameMap.resetArrow(i, n, !0), this.gameMap.setArrowType(i, n, t.type, !0), this.gameMap.setArrowRotation(i, n, t.rotation, !0), this.gameMap.setArrowFlipped(i, n, t.flipped, !0), this.gameMap.getArrow(i, n).layer = t.layer)
             }))
         }
     });
@@ -273,6 +273,26 @@
             }
         }
     });
+    patch('ArrowData', (_ArrowData) => class ArrowData {
+        constructor() {
+            this.type = 0, this.rotation = 0, this.flipped = !1, this.layer = undefined
+        }
+        static fromArrow(e) {
+            const t = new modules.ArrowData();
+            return void 0 === e || (t.type = e.type, t.rotation = e.rotation, t.flipped = e.flipped, t.layer = e.layer), t
+        }
+        static fromState(e, t, i, layer) {
+            const n = new modules.ArrowData();
+            return n.type = e, n.rotation = t, n.flipped = i, n.layer = layer, n
+        }
+        static fromCopy(e) {
+            const t = new modules.ArrowData();
+            return t.type = e.type, t.rotation = e.rotation, t.flipped = e.flipped, t.layer = e.layer, t
+        }
+        equals(e) {
+            return this.type === e.type && this.rotation === e.rotation && this.flipped === e.flipped && this.layer === e.layer
+        }
+    })
     patch('PlayerControls', (_PlayerControls) => class PlayerControls extends _PlayerControls {
         constructor(e, t, s, i) {
             super(e, t, s, i);
@@ -305,7 +325,7 @@
             const arrow = this.game.gameMap.getArrow(e, t);
             if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
             const s = modules.ArrowData.fromArrow(arrow),
-                i = modules.ArrowData.fromState(0, 0, !1);
+                i = modules.ArrowData.fromState(0, 0, !1, 0);
             null !== this.history && this.history.addChange(e, t, s, i), this.game.gameMap.removeArrow(e, t), this.game.selectedMap.deselect(e, t), this.game.screenUpdated = !0
         }
         deleteSelectedArrows() {
@@ -313,7 +333,7 @@
                 const [t, s] = e.split(",").map((e => parseInt(e, 10)));
                 const arrow = this.game.gameMap.getArrow(t, s);
                 if (arrow && (arrow.layer || 0) != ldlc.current_layer && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
-                const i = modules.ArrowData.fromArrow(arrow), n = modules.ArrowData.fromState(0, 0, !1);
+                const i = modules.ArrowData.fromArrow(arrow), n = modules.ArrowData.fromState(0, 0, !1, 0);
                 null !== this.history && this.history.addChange(t, s, i, n), this.game.gameMap.removeArrow(t, s)
             })), this.game.selectedMap.clear(), this.game.screenUpdated = !0)
         }
@@ -324,7 +344,7 @@
                 const arrow = this.game.gameMap.getArrow(e + n, t + o);
                 if (arrow && arrow.type !== 0 && (arrow.layer || 0) != ldlc.current_layer && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
                 const r = modules.ArrowData.fromArrow(arrow);
-                const l = modules.ArrowData.fromState(s.type, s.rotation, s.flipped);
+                const l = modules.ArrowData.fromState(s.type, s.rotation, s.flipped, s.layer);
                 null !== this.history && this.history.addChange(e + n, t + o, r, l), this.game.gameMap.setArrowType(e + n, t + o, s.type), this.game.gameMap.setArrowRotation(e + n, t + o, s.rotation), this.game.gameMap.setArrowFlipped(e + n, t + o, s.flipped)
             }))
         }
