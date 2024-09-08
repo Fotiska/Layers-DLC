@@ -3,7 +3,7 @@
     const modules = {};
     const imodules = {};
     const refs = [];
-    function ref(module, callback) {
+    function patch(module, callback) {
         refs.push([module, callback]);
     }
     const pfc = Function.prototype.call;
@@ -17,6 +17,14 @@
                 refs.forEach(([module, callback]) => {
                     if (module === emodule) exports[emodule] = callback(exports[emodule]);
                 });
+                if (typeof exports[emodule] === 'function' && /^\s*class\s+/.test(exports[emodule].toString())) {
+                    exports[emodule] = class IModuleProxy extends exports[emodule] {
+                        constructor(...args) {
+                            super(...args);
+                            imodules[emodule] = this;
+                        }
+                    }
+                }
                 modules[emodule] = exports[emodule];
             });
         }
@@ -28,12 +36,15 @@
             this.INACTIVE_LAYER_ALPHA = 0.5;
             this.BLUEPRINT_LAYER_ALPHA = 0.7;
             this.current_layer = 0;
+
+            this.modules = modules;
+            this.imodules = imodules;
         }
     }
-    window.ldlc = new LayersDLC();
+    ldlc = new LayersDLC();
     // region Modifying Modules
 
-    ref('save', (save) => function(gameMap) {
+    patch('save', (_) => function(gameMap) {
         const data = [];
         data.push(0, 0); // ВЕРСИЯ ИГРЫ ( ПОКА ЧТО НЕ МЕНЯЕТСЯ )
         data.push(255 & gameMap.chunks.size, gameMap.chunks.size >> 8 & 255);
@@ -83,7 +94,7 @@
         });
         return data;
     });
-    ref('load', (load) => function(gameMap, data) {
+    patch('load', (_) => function(gameMap, data) {
         if (data.length < 4) return;
 
         let s = 0;
@@ -118,6 +129,7 @@
                 }
             }
         }
+        if (data.length - 1 == s) return;
         for (let _ = 0; _ < chunks_count; _++) {
             let x = data[s++];
             x |= (127 & data[s++]) << 8;
@@ -137,9 +149,8 @@
             }
         }
     });
-    ref('Game', (game) => class Game extends game {
+    patch('Game', (_Game) => class Game extends _Game {
         draw() {
-            imodules.game = this;
         this.updateFocus();
         (this.drawPastedArrows || 0 !== this.selectedMap.getSelectedArrows().length) && (this.screenUpdated = !0);
         modules.PlayerSettings.framesToUpdate[this.updateSpeedLevel] > 1 && (this.screenUpdated = !0);
@@ -202,7 +213,7 @@
             this.render.disableSolidColor(), this.screenUpdated = !1, this.frame++
         }
     });
-    ref('Render', (render) => class Render extends render {
+    patch('Render', (_Render) => class Render extends _Render {
         drawArrow(e, t, arrow, s, i, n, o) {
             if ((s -= 1) !== this.lastArrowType) {
                 const e = s / 8 % 1,
@@ -222,74 +233,74 @@
             this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0);
         }
     });
-    ref('GameMap', (gameMap) => class GameMap extends gameMap {
-        constructor() {
-            super();
-        }
+    patch('GameMap', (_GameMap) => class GameMap extends _GameMap {
         setArrowType(x, y, type, hz=true) {
             const chunk = this.getOrCreateChunkByArrowCoordinates(x, y);
             const ax = x - chunk.x * modules.CHUNK_SIZE;
             const ay = y - chunk.y * modules.CHUNK_SIZE;
             const arrow = chunk.getArrow(ax, ay);
             if (!hz || arrow.type === type || !arrow.canBeEdited || modules.PlayerSettings.levelArrows.includes(arrow.type)) return;
+            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed()) return;
             arrow.layer = ldlc.current_layer;
             arrow.signal = 0;
             arrow.type = type;
         }
         setArrowRotation(e, t, s, n = !0) {
             const o = this.getArrowForEditing(e, t);
+            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && !imodules.KeyboardHandler.getShiftPressed()) return;
             if (void 0 !== o && 0 !== o.type) {
                 if (n && !o.canBeEdited) return;
                 if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
                 o.rotation = s
-                o.layer = ldlc.current_layer;
             }
         }
         setArrowFlipped(e, t, s, n = !0) {
             const o = this.getArrowForEditing(e, t);
+            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && !imodules.KeyboardHandler.getShiftPressed()) return;
             if (void 0 !== o && 0 !== o.type) {
                 if (n && !o.canBeEdited) return;
                 if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
                 o.flipped = s
-                o.layer = ldlc.current_layer;
             }
         }
     });
-    ref('PlayerControls', (playerControls) => class PlayerControls extends playerControls {
+    patch('PlayerControls', (_PlayerControls) => class PlayerControls extends _PlayerControls {
         constructor(e, t, s, i) {
             super(e, t, s, i);
             const pKDC = this.keyDownCallback;
             this.keyDownCallback = (e, t) => {
                 if (e === 'KeyG') {
                     ldlc.current_layer -= 1;
-                    ShowCurrentLayer(this.playerAccess);
-                    imodules.game.screenUpdated = true;
+                    ShowCurrentLayer();
+                    imodules.Game.screenUpdated = true;
                 }
                 else if (e === 'KeyT') {
                     ldlc.current_layer += 1;
-                    ShowCurrentLayer(this.playerAccess);
-                    imodules.game.screenUpdated = true;
+                    ShowCurrentLayer();
+                    imodules.Game.screenUpdated = true;
                 }
                 else if (e === 'KeyU') {
                     ldlc.current_layer = 0;
-                    ShowCurrentLayer(this.playerAccess);
-                    imodules.game.screenUpdated = true;
+                    ShowCurrentLayer();
+                    imodules.Game.screenUpdated = true;
                 }
                 pKDC(e, t);
             }
             this.keyboardHandler.keyDownCallback = this.keyDownCallback;
-            ShowCurrentLayer(this.playerAccess);
+            ShowCurrentLayer();
+        }
+        deleteArrow(e, t) {
+            if (!this.playerAccess.canDelete) return;
+            const arrow = this.game.gameMap.getArrow(e, t);
+            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed()) return;
+            const s = modules.ArrowData.fromArrow(arrow),
+                i = modules.ArrowData.fromState(0, 0, !1);
+            null !== this.history && this.history.addChange(e, t, s, i), this.game.gameMap.removeArrow(e, t), this.game.selectedMap.deselect(e, t), this.game.screenUpdated = !0
         }
     });
-    ref('PlayerUI', (playerUI) => class PlayerUI extends playerUI {
-        constructor(e) {
-            super(e);
-            imodules.playerUI = this;
-        }
-    })
-    function ShowCurrentLayer(playerAccess) {
-        modules.ControlsHintsText.MOVE[modules.LangSettings.getLanguage()] = 'Слой: ' + ldlc.current_layer;
-        if (imodules.playerUI) imodules.playerUI.updateControlsHintRights(playerAccess);
+    function ShowCurrentLayer() {
+        modules.ControlsHintsText.MOVE[modules.LangSettings.getLanguage()] = 'Текущий слой: ' + ldlc.current_layer;
+        imodules.PlayerUI.updateControlsHintRights(imodules.PlayerAccess);
     }
     // endregion
 })();

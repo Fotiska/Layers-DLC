@@ -1,0 +1,27 @@
+:root {
+    --light-blue: #375fbb !important;
+    --light-green: #28dc46 !important;
+    --light-red: #d82222 !important;
+}
+
+.ui-inventory-items {
+    background-color: var(--light-blue) !important;
+    border-radius: 1.2vw !important;
+}
+
+.ui-inventory-line {
+    background-color: transparent !important;
+}
+
+.inventory-item {
+    background-color: var(--background) !important;
+    border-radius: 1.2vw !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.inventory-item img {
+    width: 2.8vw !important;
+    height: 2.8vw !important;
+}
