@@ -36,9 +36,6 @@
             this.INACTIVE_LAYER_ALPHA = 0.5;
             this.BLUEPRINT_LAYER_ALPHA = 0.7;
             this.current_layer = 0;
-
-            this.modules = modules;
-            this.imodules = imodules;
         }
     }
     ldlc = new LayersDLC();
@@ -145,7 +142,6 @@
                     const arrow = chunk.getArrow(x, y);
                     if (arrow.type === 0) continue;
                     arrow.layer = data[s++] || 0
-                    console.log(123)
                 }
             }
         }
@@ -169,7 +165,7 @@
                 for (let t = 0; t < modules.CHUNK_SIZE; t++)
                     for (let s = 0; s < modules.CHUNK_SIZE; s++) {
                         const o = e.getArrow(t, s);
-                        if ((o.layer || 0) == ldlc.current_layer) {
+                        if ((o.layer || 0) == ldlc.current_layer || ldlc.current_layer === -1) {
                             this.render.setArrowAlpha(ldlc.ACTIVE_LAYER_ALPHA);
                         } else {
                             this.render.setArrowAlpha(ldlc.INACTIVE_LAYER_ALPHA);
@@ -253,14 +249,14 @@
             const ay = y - chunk.y * modules.CHUNK_SIZE;
             const arrow = chunk.getArrow(ax, ay);
             if (!hz || arrow.type === type || !arrow.canBeEdited || modules.PlayerSettings.levelArrows.includes(arrow.type)) return;
-            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed()) return;
-            arrow.layer = ldlc.current_layer;
+            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
+            if (ldlc.current_layer !== -1) arrow.layer = ldlc.current_layer;
             arrow.signal = 0;
             arrow.type = type;
         }
         setArrowRotation(e, t, s, n = !0) {
             const o = this.getArrowForEditing(e, t);
-            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && !imodules.KeyboardHandler.getShiftPressed()) return;
+            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
             if (void 0 !== o && 0 !== o.type) {
                 if (n && !o.canBeEdited) return;
                 if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
@@ -269,7 +265,7 @@
         }
         setArrowFlipped(e, t, s, n = !0) {
             const o = this.getArrowForEditing(e, t);
-            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && !imodules.KeyboardHandler.getShiftPressed()) return;
+            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
             if (void 0 !== o && 0 !== o.type) {
                 if (n && !o.canBeEdited) return;
                 if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
@@ -284,11 +280,13 @@
             this.keyDownCallback = (e, t) => {
                 if (e === 'KeyG') {
                     ldlc.current_layer -= 1;
+                    if (ldlc.current_layer <= -1) ldlc.current_layer = -1;
                     ShowCurrentLayer();
                     imodules.Game.screenUpdated = true;
                 }
                 else if (e === 'KeyT') {
                     ldlc.current_layer += 1;
+                    if (ldlc.current_layer >= 255) ldlc.current_layer = 255;
                     ShowCurrentLayer();
                     imodules.Game.screenUpdated = true;
                 }
@@ -305,7 +303,7 @@
         deleteArrow(e, t) {
             if (!imodules.PlayerAccess.canDelete) return;
             const arrow = this.game.gameMap.getArrow(e, t);
-            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed()) return;
+            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
             const s = modules.ArrowData.fromArrow(arrow),
                 i = modules.ArrowData.fromState(0, 0, !1);
             null !== this.history && this.history.addChange(e, t, s, i), this.game.gameMap.removeArrow(e, t), this.game.selectedMap.deselect(e, t), this.game.screenUpdated = !0
@@ -314,7 +312,7 @@
             this.playerAccess.canDelete && (this.game.selectedMap.getSelectedArrows().forEach((e => {
                 const [t, s] = e.split(",").map((e => parseInt(e, 10)));
                 const arrow = this.game.gameMap.getArrow(t, s);
-                if (arrow && (arrow.layer || 0) != ldlc.current_layer && !imodules.KeyboardHandler.getShiftPressed()) return;
+                if (arrow && (arrow.layer || 0) != ldlc.current_layer && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
                 const i = modules.ArrowData.fromArrow(arrow), n = modules.ArrowData.fromState(0, 0, !1);
                 null !== this.history && this.history.addChange(t, s, i, n), this.game.gameMap.removeArrow(t, s)
             })), this.game.selectedMap.clear(), this.game.screenUpdated = !0)
@@ -324,7 +322,7 @@
                 if (modules.PlayerSettings.levelArrows.includes(s.type)) return;
                 const [n, o] = i.split(",").map((e => parseInt(e, 10)));
                 const arrow = this.game.gameMap.getArrow(e + n, t + o);
-                if (arrow && arrow.type !== 0 && (arrow.layer || 0) != ldlc.current_layer && !imodules.KeyboardHandler.getShiftPressed()) return;
+                if (arrow && arrow.type !== 0 && (arrow.layer || 0) != ldlc.current_layer && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
                 const r = modules.ArrowData.fromArrow(arrow);
                 const l = modules.ArrowData.fromState(s.type, s.rotation, s.flipped);
                 null !== this.history && this.history.addChange(e + n, t + o, r, l), this.game.gameMap.setArrowType(e + n, t + o, s.type), this.game.gameMap.setArrowRotation(e + n, t + o, s.rotation), this.game.gameMap.setArrowFlipped(e + n, t + o, s.flipped)
