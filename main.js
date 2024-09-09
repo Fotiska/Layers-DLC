@@ -351,7 +351,7 @@
     });
     function ShowCurrentLayer() {
         modules.ControlsHintsText.MOVE[modules.LangSettings.getLanguage()] = 'Текущий слой: ' + ldlc.current_layer;
-        imodules.PlayerUI.updateControlsHintRights(imodules.PlayerAccess);
+        if (imodules.PlayerUI) imodules.PlayerUI.updateControlsHintRights(imodules.PlayerAccess);
     }
     // endregion
 })();
