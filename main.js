@@ -34,7 +34,8 @@
         constructor() {
             this.ACTIVE_LAYER_ALPHA = 1;
             this.INACTIVE_LAYER_ALPHA = 0.5;
-            this.BLUEPRINT_LAYER_ALPHA = 0.7;
+            this.ACTIVE_BLUEPRINT_LAYER_ALPHA = 0.7;
+            this.INACTIVE_BLUEPRINT_LAYER_ALPHA = 0.2;
             this.current_layer = 0;
         }
     }
@@ -176,9 +177,14 @@
                         }
                     }
             })), performance.now() - this.drawTime > 1e3 && (this.drawTime = performance.now(), this.drawsPerSecond = 0), this.drawsPerSecond++, this.drawPastedArrows) {
-            this.render.setArrowAlpha(ldlc.BLUEPRINT_LAYER_ALPHA);
             const e = this.selectedMap.getCopiedArrows();
             0 !== e.size && (this.screenUpdated = !0), e.forEach(((e, t) => {
+                if ((e.layer || 0) !== ldlc.current_layer && ldlc.current_layer !== -1 && (!imodules.KeyboardHandler || !imodules.KeyboardHandler.getShiftPressed())) {
+                    this.render.setArrowAlpha(ldlc.INACTIVE_BLUEPRINT_LAYER_ALPHA);
+                }
+                else {
+                    this.render.setArrowAlpha(ldlc.ACTIVE_BLUEPRINT_LAYER_ALPHA);
+                }
                 const [s, i] = t.split(",").map((e => parseInt(e, 10)));
                 let o = s,
                     a = i,
@@ -307,6 +313,18 @@
             const i = (0, modules.save)(this.tempMap);
             return modules.Utils.arrayBufferToBase64(i)
         }
+        rotateOrFlipArrows(e, t) {
+            this.arrowsToPut.clear(), null !== e && (this.rotationState = e), t && (this.flipState = !this.flipState), this.arrowsToPutOriginal.forEach(((e, t) => {
+                let [s, i] = t.split(",").map((e => parseInt(e, 10)));
+                const n = new modules.Arrow;
+                n.type = e.type, n.rotation = e.rotation, n.flipped = e.flipped, n.layer = e.layer;
+                let o = e.rotation;
+                this.flipState && (n.flipped = !n.flipped, 1 !== n.rotation && 3 !== n.rotation || (o = (e.rotation + 2) % 4), s = -s), n.rotation = o;
+                let r = s,
+                    l = i;
+                1 === this.rotationState ? (r = -i, l = s, n.rotation = (o + 1) % 4) : 2 === this.rotationState ? (r = -s, l = -i, n.rotation = (o + 2) % 4) : 3 === this.rotationState && (r = i, l = -s, n.rotation = (o + 3) % 4), this.arrowsToPut.set(`${r},${l}`, n)
+            }))
+        }
     })
     patch('PlayerControls', (_PlayerControls) => class PlayerControls extends _PlayerControls {
         constructor(e, t, s, i) {
@@ -357,7 +375,7 @@
                 if (modules.PlayerSettings.levelArrows.includes(s.type)) return;
                 const [n, o] = i.split(",").map((e => parseInt(e, 10)));
                 const arrow = this.game.gameMap.getArrow(e + n, t + o);
-                if (arrow && arrow.type !== 0 && (arrow.layer || 0) != ldlc.current_layer && imodules.KeyboardHandler  && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
+                if (s && s.type !== 0 && (s.layer || 0) != ldlc.current_layer && ldlc.current_layer !== -1 && (imodules.KeyboardHandler  && !imodules.KeyboardHandler.getShiftPressed())) return;
                 const r = modules.ArrowData.fromArrow(arrow);
                 const l = modules.ArrowData.fromState(s.type, s.rotation, s.flipped, s.layer);
                 null !== this.history && this.history.addChange(e + n, t + o, r, l), this.game.gameMap.setArrowType(e + n, t + o, s.type), this.game.gameMap.setArrowRotation(e + n, t + o, s.rotation), this.game.gameMap.setArrowFlipped(e + n, t + o, s.flipped), this.game.gameMap.getArrow(e + n, t + o).layer = (s.layer) ? s.layer : ((ldlc.current_layer !== -1) ? ldlc.current_layer : 0);
