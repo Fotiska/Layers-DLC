@@ -40,7 +40,6 @@
     }
     ldlc = new LayersDLC();
     // region Modifying Modules
-
     patch('save', (_) => function(gameMap) {
         const data = [];
         data.push(0, 0); // ВЕРСИЯ ИГРЫ ( ПОКА ЧТО НЕ МЕНЯЕТСЯ )
@@ -249,14 +248,14 @@
             const ay = y - chunk.y * modules.CHUNK_SIZE;
             const arrow = chunk.getArrow(ax, ay);
             if (!hz || arrow.type === type || !arrow.canBeEdited || modules.PlayerSettings.levelArrows.includes(arrow.type)) return;
-            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
+            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && imodules.KeyboardHandler && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
             if (ldlc.current_layer !== -1) arrow.layer = ldlc.current_layer;
             arrow.signal = 0;
             arrow.type = type;
         }
         setArrowRotation(e, t, s, n = !0) {
             const o = this.getArrowForEditing(e, t);
-            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
+            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && imodules.KeyboardHandler  && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
             if (void 0 !== o && 0 !== o.type) {
                 if (n && !o.canBeEdited) return;
                 if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
@@ -265,7 +264,7 @@
         }
         setArrowFlipped(e, t, s, n = !0) {
             const o = this.getArrowForEditing(e, t);
-            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
+            if (o && (o.layer || 0) !== ldlc.current_layer && o.type !== 0 && imodules.KeyboardHandler  && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
             if (void 0 !== o && 0 !== o.type) {
                 if (n && !o.canBeEdited) return;
                 if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
@@ -323,7 +322,7 @@
         deleteArrow(e, t) {
             if (!imodules.PlayerAccess.canDelete) return;
             const arrow = this.game.gameMap.getArrow(e, t);
-            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
+            if (arrow && (arrow.layer || 0) !== ldlc.current_layer && arrow.type !== 0 && imodules.KeyboardHandler  && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
             const s = modules.ArrowData.fromArrow(arrow),
                 i = modules.ArrowData.fromState(0, 0, !1, 0);
             null !== this.history && this.history.addChange(e, t, s, i), this.game.gameMap.removeArrow(e, t), this.game.selectedMap.deselect(e, t), this.game.screenUpdated = !0
@@ -332,7 +331,7 @@
             this.playerAccess.canDelete && (this.game.selectedMap.getSelectedArrows().forEach((e => {
                 const [t, s] = e.split(",").map((e => parseInt(e, 10)));
                 const arrow = this.game.gameMap.getArrow(t, s);
-                if (arrow && (arrow.layer || 0) != ldlc.current_layer && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
+                if (arrow && (arrow.layer || 0) != ldlc.current_layer && imodules.KeyboardHandler  && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
                 const i = modules.ArrowData.fromArrow(arrow), n = modules.ArrowData.fromState(0, 0, !1, 0);
                 null !== this.history && this.history.addChange(t, s, i, n), this.game.gameMap.removeArrow(t, s)
             })), this.game.selectedMap.clear(), this.game.screenUpdated = !0)
@@ -342,7 +341,7 @@
                 if (modules.PlayerSettings.levelArrows.includes(s.type)) return;
                 const [n, o] = i.split(",").map((e => parseInt(e, 10)));
                 const arrow = this.game.gameMap.getArrow(e + n, t + o);
-                if (arrow && arrow.type !== 0 && (arrow.layer || 0) != ldlc.current_layer && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
+                if (arrow && arrow.type !== 0 && (arrow.layer || 0) != ldlc.current_layer && imodules.KeyboardHandler  && !imodules.KeyboardHandler.getShiftPressed() && ldlc.current_layer !== -1) return;
                 const r = modules.ArrowData.fromArrow(arrow);
                 const l = modules.ArrowData.fromState(s.type, s.rotation, s.flipped, s.layer);
                 null !== this.history && this.history.addChange(e + n, t + o, r, l), this.game.gameMap.setArrowType(e + n, t + o, s.type), this.game.gameMap.setArrowRotation(e + n, t + o, s.rotation), this.game.gameMap.setArrowFlipped(e + n, t + o, s.flipped)
