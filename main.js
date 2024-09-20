@@ -341,6 +341,12 @@
             }))
         }
     })
+    patch('PlayerUI', (_PlayerUI) => class PlayerUI extends _PlayerUI {
+        constructor(e) {
+            super(e);
+            imodules.PlayerUI = this;
+        }
+    })
     patch('PlayerControls', (_PlayerControls) => class PlayerControls extends _PlayerControls {
         constructor(e, t, s, i) {
             super(e, t, s, i);
@@ -406,6 +412,8 @@
     });
     function ShowCurrentLayer() {
         modules.ControlsHintsText.MOVE[modules.LangSettings.getLanguage()] = 'Текущий слой: ' + ldlc.current_layer;
+        window.modules = modules;
+        window.imodules = imodules;
         if (imodules.PlayerUI) imodules.PlayerUI.updateControlsHintRights(imodules.PlayerAccess);
     }
     // endregion
