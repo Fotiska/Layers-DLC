@@ -289,6 +289,7 @@
                 if (ldlc.canForceArrowEdit(arrow)) return;
                 if (ldlc.canResetArrowLayer()) arrow.layer = ldlc.current_layer;
             }
+            if (arrow.type === type) return;
             arrow.signal = 0;
             arrow.type = type;
         }
