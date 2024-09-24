@@ -43,6 +43,11 @@ const RawDeflate = {};
             this.current_layer = 0;
         }
 
+        getCurrentLayerForPlace() {
+            if (this.current_layer === -1) return 0;
+            return this.current_layer;
+        }
+
         canForceArrowEdit(arrow) {
             return (arrow && !this.isArrowOnCurrentLayer(arrow) && arrow.type !== 0) && this.tryForceEdit();
         }
@@ -347,7 +352,7 @@ const RawDeflate = {};
             if (!force) {
                 if (!hz || !arrow.canBeEdited || modules.PlayerSettings.levelArrows.includes(arrow.type)) return;
                 if (ldlc.canForceArrowEdit(arrow)) return;
-                if (ldlc.canResetArrowLayer()) arrow.layer = ldlc.current_layer;
+                if (ldlc.canResetArrowLayer()) arrow.layer = ldlc.getCurrentLayerForPlace();
             }
             if (arrow.type === type) return;
             arrow.signal = 0;
@@ -501,8 +506,8 @@ const RawDeflate = {};
                 this.game.gameMap.setArrowRotation(e + n, t + o, s.rotation);
                 this.game.gameMap.setArrowFlipped(e + n, t + o, s.flipped);
                 arrow = this.game.gameMap.getArrow(e + n, t + o);
-                arrow.layer = ldlc.getLayer(s.layer, ldlc.current_layer);
-                if (ldlc.canResetArrowLayer()) arrow.layer = ldlc.current_layer;
+                arrow.layer = ldlc.getLayer(s.layer, ldlc.getCurrentLayerForPlace());
+                if (ldlc.canResetArrowLayer()) arrow.layer = ldlc.getCurrentLayerForPlace();
             }))
         }
     });
