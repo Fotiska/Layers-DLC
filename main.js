@@ -518,8 +518,8 @@ const RawDeflate = {};
                 arrow.type = s.type;
                 arrow.rotation = s.rotation;
                 arrow.flipped = s.flipped;
-                // if (!ldlc.tryForceArrowEdit() && prevType === 0) arrow.layer = ldlc.getLayer(s.layer, ldlc.getCurrentLayerForPlace());
-                if (ldlc.tryForceArrowEdit() || prevType === 0) arrow.layer = ldlc.getLayer(s.layer, ldlc.getCurrentLayerForPlace());
+                if (!ldlc.tryForceArrowEdit() && prevType === 0) arrow.layer = ldlc.getLayer(s.layer, ldlc.getCurrentLayerForPlace());
+                // if (ldlc.tryForceArrowEdit() || prevType === 0) arrow.layer = ldlc.getLayer(s.layer, ldlc.getCurrentLayerForPlace());
                 if (ldlc.canResetArrowLayer()) arrow.layer = ldlc.getCurrentLayerForPlace();
             }))
         }
