@@ -145,8 +145,8 @@ const RawDeflate = {};
             });
             chunksCount += 1;
         });
-        layerData[0] = 255 & chunksCount;
-        layerData[1] = chunksCount >> 8 & 255;
+        layerData[2] = 255 & chunksCount;
+        layerData[3] = chunksCount >> 8 & 255;
 
         const compressedLayerData = RawDeflate.deflate(new Uint8Array(layerData), 9);
         data.push(...compressedLayerData)
