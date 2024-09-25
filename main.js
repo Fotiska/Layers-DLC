@@ -53,7 +53,15 @@ const RawDeflate = {};
         }
 
         tryForceEdit() {
-            return (imodules.PlayerControls.keyboardHandler && !imodules.PlayerControls.keyboardHandler.getShiftPressed() && !imodules.PlayerControls.keyboardHandler.getCtrlPressed());
+            return !this.tryForceArrowEdit() && !this.tryForceLayerEdit()
+        }
+
+        tryForceArrowEdit() {
+            return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getShiftPressed();
+        }
+
+        tryForceLayerEdit() {
+            return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed();
         }
 
         canResetArrowLayer() {
@@ -360,7 +368,8 @@ const RawDeflate = {};
         }
         setArrowRotation(e, t, s, n = !0, force=false) {
             const o = this.getArrowForEditing(e, t);
-            if (ldlc.canForceArrowEdit(o) && !force) return;
+            if (force) return o.rotation = s;
+            if (ldlc.canForceArrowEdit(o)) return;
             if (void 0 !== o && 0 !== o.type) {
                 if (n && !o.canBeEdited) return;
                 if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
@@ -369,7 +378,8 @@ const RawDeflate = {};
         }
         setArrowFlipped(e, t, s, n = !0, force=false) {
             const o = this.getArrowForEditing(e, t);
-            if (ldlc.canForceArrowEdit(o) && !force) return;
+            if (force) return o.flipped = s;
+            if (ldlc.canForceArrowEdit(o)) return;
             if (void 0 !== o && 0 !== o.type) {
                 if (n && !o.canBeEdited) return;
                 if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
@@ -502,11 +512,14 @@ const RawDeflate = {};
                 const r = modules.ArrowData.fromArrow(arrow);
                 const l = modules.ArrowData.fromState(s.type, s.rotation, s.flipped, s.layer);
                 null !== this.history && this.history.addChange(e + n, t + o, r, l);
-                this.game.gameMap.setArrowType(e + n, t + o, s.type);
-                this.game.gameMap.setArrowRotation(e + n, t + o, s.rotation);
-                this.game.gameMap.setArrowFlipped(e + n, t + o, s.flipped);
-                arrow = this.game.gameMap.getArrow(e + n, t + o);
-                arrow.layer = ldlc.getLayer(s.layer, ldlc.getCurrentLayerForPlace());
+                this.game.gameMap.getOrCreateChunkByArrowCoordinates(e + n, t + o);
+                arrow = this.game.gameMap.getArrowForEditing(e + n, t + o);
+                const prevType = arrow.type;
+                arrow.type = s.type;
+                arrow.rotation = s.rotation;
+                arrow.flipped = s.flipped;
+                // if (!ldlc.tryForceArrowEdit() && prevType === 0) arrow.layer = ldlc.getLayer(s.layer, ldlc.getCurrentLayerForPlace());
+                if (ldlc.tryForceArrowEdit() || prevType === 0) arrow.layer = ldlc.getLayer(s.layer, ldlc.getCurrentLayerForPlace());
                 if (ldlc.canResetArrowLayer()) arrow.layer = ldlc.getCurrentLayerForPlace();
             }))
         }
