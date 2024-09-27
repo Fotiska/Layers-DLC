@@ -12,7 +12,7 @@ const RawDeflate = {};
     }
     const pfc = Function.prototype.call;
     Function.prototype.call = function(...e) {
-        pfc.apply(this, e);
+        const result = pfc.apply(this, e);
         let exports = e[2];
         if (exports !== undefined && exports.__esModule === true) {
             let emodules = Object.getOwnPropertyNames(exports);
@@ -32,6 +32,7 @@ const RawDeflate = {};
                 modules[emodule] = exports[emodule];
             });
         }
+        return result;
     }
     // endregion
     class LayersDLC {
