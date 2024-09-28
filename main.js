@@ -479,6 +479,16 @@ const RawDeflate = {};
             this.keyboardHandler.keyDownCallback = this.keyDownCallback;
             ShowCurrentLayer();
         }
+        update() {
+            super.update();
+            if (this.keyboardHandler.getKeyPressed("KeyJ")) {
+                const arrowUnderMouse = this.getArrowByMousePosition();
+                if (arrowUnderMouse) {
+                    arrowUnderMouse.layer = ldlc.getCurrentLayerForPlace()
+                    imodules.Game.screenUpdated = true;
+                }
+            }
+        }
         takeArrow(e) {
             this.activeArrowType = e,
             this.playerUI.toolbarController.activateItem(e),
