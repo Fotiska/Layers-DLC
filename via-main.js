@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Layers-DLC
 // @namespace    https://logic-arrows.com/
-// @version      2.5.0rc1
+// @version      1.0.0
 // @description  Layers DLC Для стрелочек...
 // @author       Fotis
 // @run-at       document-idle
