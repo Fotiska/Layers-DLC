@@ -116,7 +116,8 @@
     });
     const layerData = [];
     let chunksCount = 0;
-    layerData.push(0, 0);
+    layerData.push(0); // Обозначение Layers-DLC
+    layerData.push(0); // Версия Layers-DLC
     layerData.push(255 & chunksCount);
     layerData.push(chunksCount >> 8 & 255);
     gameMap.chunks.forEach((chunk) => {
@@ -208,10 +209,11 @@
     const compressedLayerData = data.slice(s);
     const layerData = RawDeflate.inflate(new Uint8Array(compressedLayerData));
     s = 0;
-    let ldlcSaveVersion = data[s++];
-    ldlcSaveVersion |= data[s++] << 8;
 
-    if (ldlcSaveVersion !== 0) throw new Error('Unsupported ldlc save version');
+    if (data[s++] !== 0) throw new Error('WTF bro use Layers-DLC, other mods are cringe.');
+
+    let ldlcSaveVersion = data[s++];
+    if (ldlcSaveVersion !== 0) throw new Error('Unsupported Layers-DLC save version');
 
     const layer_chunks_count = layerData[s++] | layerData[s++] << 8;
     for (let _ = 0; _ < layer_chunks_count; _++) {
