@@ -248,6 +248,7 @@ setTimeout((() => {
             if (oldDistance === null) oldDistance = distance
             if (imodules.PlayerControls) imodules.PlayerControls.keyboardZoomVelocity = (oldDistance - distance)*7
             oldDistance = distance
+            clearTimeout(timer);
         }
     }
 
@@ -259,16 +260,18 @@ setTimeout((() => {
         if (currentMode === 'shift') sendKeyUp("ShiftLeft", "Shift");
         if (currentMode === 'ctrl') sendKeyUp("ControlLeft", "Control");
         if (currentMode === 'delete') if (imodules.PlayerControls) imodules.PlayerControls.takeCursor();
-        if (imodules.PlayerControls) imodules.PlayerControls.freeCursor = true,
+        if (imodules.PlayerControls) imodules.PlayerControls.freeCursor = true;
         currentMode = null;
     }
 
     document.addEventListener('touchstart', (e) => {
-        const touches = e.touches
+        const touches = e.touches;
+        oldDistance = null;
         if (touches.length >= 2) {
-            if (imodules.PlayerControls) imodules.PlayerControls.takeCursor()
+            if (imodules.PlayerControls) imodules.PlayerControls.takeCursor();
+            clearTimeout(timer);
+            return;
         }
-        oldDistance = null
 
         timer = setTimeout(() => {
             if (imodules.KeyboardHandler) {
@@ -283,7 +286,7 @@ setTimeout((() => {
                     selected = true;
                 }
             }
-        }, 100);
+        }, 1000);
     });
 
     document.addEventListener('touchend', () => {
