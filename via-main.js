@@ -161,12 +161,12 @@ setTimeout((() => {
     
     .mi-prevlayer {
         top: 47vmin !important;
-        right: 5vmin !important;
+        right: 26vmin !important;
     }
     
     .mi-nextlayer {
         top: 47vmin !important;
-        right: 26vmin !important;
+        right: 5vmin !important;
     }
     
     .mi-resetlayer {
