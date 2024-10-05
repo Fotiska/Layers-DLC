@@ -1,3 +1,4 @@
+
 (() => {
   // region RawDeflate
   const RawDeflate = {};
@@ -42,11 +43,15 @@
       this.INACTIVE_LAYER_ALPHA = 0.5;
       this.ACTIVE_BLUEPRINT_LAYER_ALPHA = 0.7;
       this.INACTIVE_BLUEPRINT_LAYER_ALPHA = 0.2;
+
+      this.MAJOR = 0;
+      this.MINOR = 0;
+
       this.current_layer = 0;
     }
 
     getCurrentLayerForPlace() {
-      if (this.current_layer === -1) return 0;
+      if (ldlc.isSpecialLayer(this.current_layer)) return 0;
       return this.current_layer;
     }
 
@@ -55,28 +60,74 @@
     }
 
     tryForceEdit() {
-      return !this.tryForceArrowEdit() && !this.tryForceLayerEdit();
+      return !this.tryForceArrowEdit() && !this.tryForceLayerEdit() || this.current_layer === -2;
     }
 
     tryForceArrowEdit() {
-      return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getShiftPressed();
+      return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getShiftPressed() && this.current_layer !== -2;
     }
 
     tryForceLayerEdit() {
-      return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed();
+      return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed() && this.current_layer !== -2;
+    }
+
+    isSpecialLayer(layer=this.current_layer) {
+      return layer === -1 || layer === -2;
     }
 
     canResetArrowLayer() {
-      return this.current_layer !== -1 && (imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed());
+      return !this.isSpecialLayer() && (imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed());
     }
 
     isArrowOnCurrentLayer(arrow) {
-      return ((arrow.layer || 0) === this.current_layer || this.current_layer === -1);
+      return (this.getLayer(arrow.layer, 0) === this.current_layer || this.isSpecialLayer());
     }
 
     getLayer(layer, def) {
       if (layer === undefined) return def;
       return layer;
+    }
+
+    processHotkeys(key) {
+      if (key === 'KeyG') {
+        ldlc.current_layer -= 1;
+        if (ldlc.current_layer <= -2) ldlc.current_layer = -2;
+        this.showCurrentLayer();
+        imodules.Game.screenUpdated = true;
+      } else if (key === 'KeyT') {
+        ldlc.current_layer += 1;
+        if (ldlc.current_layer >= 255) ldlc.current_layer = 255;
+        this.showCurrentLayer();
+        imodules.Game.screenUpdated = true;
+      } else if (key === 'KeyU') {
+        ldlc.current_layer = 0;
+        this.showCurrentLayer();
+        imodules.Game.screenUpdated = true;
+      } else if (key === 'KeyI' && ldlc.current_layer === -2) {
+        let minX = Number.POSITIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        this.game.selectedMap.getSelectedArrows().forEach((e) => {
+          const [x, y] = e.split(',').map(((e) => parseInt(e, 10)));
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        })
+        console.log(minX, minY, maxX, maxY);
+        imodules.Game.screenUpdated = true;
+      }
+    }
+    showCurrentLayer() {
+      let clayer = ldlc.current_layer;
+      if (ldlc.current_layer === 255) clayer = 'fjsags';
+      else if (ldlc.current_layer === -1) clayer = 'Общий';
+      else if (ldlc.current_layer === -2) clayer = 'Зоны';
+      modules.ControlsHintsText.MOVE[modules.LangSettings.getLanguage()] = `Текущий слой: ${clayer}`;
+      window.modules = modules;
+      window.imodules = imodules;
+      if (imodules.PlayerUI) imodules.PlayerUI.updateControlsHintRights(imodules.PlayerAccess);
     }
   }
   const ldlc = new LayersDLC();
@@ -117,7 +168,7 @@
     const layerData = [];
     let chunksCount = 0;
     layerData.push(0); // Обозначение Layers-DLC
-    layerData.push(0); // Версия Layers-DLC
+    layerData.push(ldlc.MAJOR << 4 | ldlc.MINOR); // Версия Layers-DLC
     layerData.push(255 & chunksCount);
     layerData.push(chunksCount >> 8 & 255);
     gameMap.chunks.forEach((chunk) => {
@@ -161,10 +212,6 @@
 
     const compressedLayerData = RawDeflate.deflate(new Uint8Array(layerData), 9);
     data.push(...compressedLayerData);
-
-    console.log('Raw layers length:', layerData.length);
-    console.log('Compressed layers length:', compressedLayerData.length);
-    console.log('Total length:', data.length);
 
     return data;
   });
@@ -212,8 +259,10 @@
 
     if (data[s++] !== 0) throw new Error('WTF bro use Layers-DLC, other mods are cringe.');
 
-    let ldlcSaveVersion = data[s++];
-    if (ldlcSaveVersion !== 0) throw new Error('Unsupported Layers-DLC save version');
+    const ldlcVersion = data[s++];
+    const lvMajor = ldlcVersion & 0xF0;
+    const lvMinor = ldlcVersion & 0x0F;
+    if (lvMajor !== ldlc.MAJOR) throw new Error('Unsupported Layers-DLC save version');
 
     const layer_chunks_count = layerData[s++] | layerData[s++] << 8;
     for (let _ = 0; _ < layer_chunks_count; _++) {
@@ -239,10 +288,6 @@
         }
       }
     }
-
-    console.log('Compressed layers length:', compressedLayerData.length);
-    console.log('Decompressed layers length:', layerData.length);
-    console.log('Total length:', data.length);
   });
   patch('Game', (_Game) => class Game extends _Game {
     draw() {
@@ -263,7 +308,7 @@
         for (let t = 0; t < modules.CHUNK_SIZE; t++) {
           for (let s = 0; s < modules.CHUNK_SIZE; s++) {
             const o = e.getArrow(t, s);
-            if ((o.layer || 0) == ldlc.current_layer || ldlc.current_layer === -1) {
+            if (ldlc.getLayer(o.layer, 0) === ldlc.current_layer || ldlc.isSpecialLayer()) {
               this.render.setArrowAlpha(ldlc.ACTIVE_LAYER_ALPHA);
             } else {
               this.render.setArrowAlpha(ldlc.INACTIVE_LAYER_ALPHA);
@@ -293,12 +338,15 @@
           this.render.drawArrow(l, h, e.type, e.signal, (e.rotation + r) % 4, e.flipped);
         }));
       }
-      if (this.render.disableArrows(), this.render.prepareSolidColor(), this.render.setSolidColor(0.25, 0.5, 1, 0.25), this.selectedMap.getSelectedArrows().forEach(((e) => {
+      const selectedArrows = this.selectedMap.getSelectedArrows();
+      const borders = this.selectedMap.borders;
+      const corners = this.selectedMap.corners;
+      if (this.render.disableArrows(), this.render.prepareSolidColor(), this.render.setSolidColor(0.25, 0.5, 1, 0.25), selectedArrows.forEach(((e) => {
         const t = e.split(',').map(((e) => parseInt(e, 10)));
         const s = t[0] * this.scale + this.offset[0] * this.scale / modules.CELL_SIZE;
         const i = t[1] * this.scale + this.offset[1] * this.scale / modules.CELL_SIZE;
         const o = this.scale + 0.05 * this.scale;
-        this.render.drawSolidColor(s, i, o, o);
+        this.render.drawSolidColor(s, i, o, o, this.scale, borders.get(e) || [true, true, true, true], corners.get(e) || [true, true, true, true]);
       })), this.isSelecting) {
         this.render.prepareSolidColor(), this.render.setSolidColor(0.5, 0.5, 0.75, 0.25);
         const e = this.selectedMap.getCurrentSelectedArea();
@@ -307,10 +355,34 @@
           const s = e[1] * this.scale + this.offset[1] * this.scale / modules.CELL_SIZE;
           const i = e[2] - e[0];
           const o = e[3] - e[1];
-          this.render.drawSolidColor(t, s, i * this.scale, o * this.scale);
+          this.render.drawSolidColor(t, s, i * this.scale, o * this.scale, -1);
         }
-      }
-      this.render.disableSolidColor(), this.screenUpdated = !1, this.frame++;
+      };
+
+      this.screenUpdated = false;
+
+      // region Regions
+      // const norm = (x) => x * this.scale;
+      // const normofs = (x, ofs) => x * this.scale + 0.025 * this.scale + this.offset[ofs] * this.scale / modules.CELL_SIZE;
+      //
+      // this.render.prepareSolidColor();
+      // this.render.setSolidColor(0.25, 0.5, 1, 0.25);
+      // let x = normofs(0, 0);
+      // let y = normofs(0, 1);
+      // let sx = norm(10);
+      // let sy = norm(10);
+      // this.render.drawSolidColor(x, y, sx, sy);
+      // this.render.setSolidColor(1, 0.5, 0.25, 0.25);
+      // x = normofs(10, 0);
+      // y = normofs(0, 1);
+      // sx = norm(10);
+      // sy = norm(10);
+      // this.render.drawSolidColor(x, y, sx, sy);
+      // this.screenUpdated = true;
+      // endregion
+
+      this.render.disableSolidColor();
+      this.frame++;
     }
 
     undoChanges(e) {
@@ -327,8 +399,35 @@
       }));
     }
   });
-  window.imodules = imodules;
-  window.modules = modules;
+  patch('SelectedMap', (_SelectedMap) => class SelectedMap extends _SelectedMap {
+    constructor() {
+      super();
+      this.borders = new Map();
+      this.corners = new Map();
+    }
+    select(e, t) {
+      this.currentSelectedArrows.add(`${e},${t}`);
+    }
+    deselect(e, t) {
+      this.selectedArrows.delete(`${e},${t}`);
+    }
+    clearCurrentSelection() {
+      this.currentSelectedArrows.clear()
+      this.borders.clear();
+      this.corners.clear();
+    }
+    updateSelectionFromCurrentSelection() {
+     const res = super.updateSelectionFromCurrentSelection();
+     this.selectedArrows.forEach((e) => {
+       const [x, y] = e.split(',').map(((e) => parseInt(e, 10)));
+       const check = (ox, oy) => !this.selectedArrows.has(`${x+ox},${y+oy}`);
+       const borders = [check(-1, 0), check(0, -1), check(1, 0), check(0, 1)];
+       const corners = [check(-1, -1) || borders[0] || borders[1], check(1, -1) || borders[1] || borders[2], check(1, 1) || borders[2] || borders[3], check(-1, 1) || borders[3] || borders[0]]
+       this.borders.set(`${x},${y}`, borders);
+       this.corners.set(`${x},${y}`, corners);
+     });
+    }
+  })
   patch('GameMap', (_GameMap) => class GameMap extends _GameMap {
     resetArrow(e, t, s = !0) {
       const n = this.getArrowForEditing(e, t);
@@ -471,25 +570,11 @@
       super(e, t, s, i);
       const pKDC = this.keyDownCallback;
       this.keyDownCallback = (e, t) => {
-        if (e === 'KeyG') {
-          ldlc.current_layer -= 1;
-          if (ldlc.current_layer <= -1) ldlc.current_layer = -1;
-          ShowCurrentLayer();
-          imodules.Game.screenUpdated = true;
-        } else if (e === 'KeyT') {
-          ldlc.current_layer += 1;
-          if (ldlc.current_layer >= 255) ldlc.current_layer = 255;
-          ShowCurrentLayer();
-          imodules.Game.screenUpdated = true;
-        } else if (e === 'KeyU') {
-          ldlc.current_layer = 0;
-          ShowCurrentLayer();
-          imodules.Game.screenUpdated = true;
-        }
+        ldlc.processHotkeys.call(this, e);
         pKDC(e, t);
       };
       this.keyboardHandler.keyDownCallback = this.keyDownCallback;
-      ShowCurrentLayer();
+      ldlc.showCurrentLayer();
     }
 
     update() {
@@ -552,12 +637,74 @@
       }));
     }
   });
-  function ShowCurrentLayer() {
-    modules.ControlsHintsText.MOVE[modules.LangSettings.getLanguage()] = `Текущий слой: ${ldlc.current_layer}`;
-    window.modules = modules;
-    window.imodules = imodules;
-    if (imodules.PlayerUI) imodules.PlayerUI.updateControlsHintRights(imodules.PlayerAccess);
-  }
+  patch('Render', (_Render) => class Render extends _Render {
+    drawSolidColor(e, t, s, i, scale=1, sides=[true, true, true, true], corners=[true, true, true, true]) {
+      s < 0 && (e -= s = -s);
+      i < 0 && (t -= i = -i);
+      this.gl.uniform4f(this.solidColorShader.getTransformUniform(), e, t, s, i);
+      this.gl.uniform1f(this.solidColorShader.getScaleUniform(), scale);
+      this.gl.uniform4iv(this.solidColorShader.getSidesUniform(), sides);
+      this.gl.uniform4iv(this.solidColorShader.getCornersUniform(), corners);
+      this.gl.drawElements(this.gl.TRIANGLES, 6, this.gl.UNSIGNED_SHORT, 0)
+    }
+  });
+  patch('SolidColorShader', (_SolidColorShader) => class SolidColorShader extends _SolidColorShader {
+    constructor() {
+      super();
+      this.sidesUniform = null;
+      window.S = _SolidColorShader;
+    }
+    updateProgram(e) {
+      super.updateProgram(e),
+      null !== this.program && (
+          this.transformUniform = e.getUniformLocation(this.program, "u_transform"),
+          this.colorUniform = e.getUniformLocation(this.program, "u_color"),
+          this.scaleUniform = e.getUniformLocation(this.program, "u_scale"),
+          this.sidesUniform = e.getUniformLocation(this.program, "u_sides"),
+          this.cornersUniform = e.getUniformLocation(this.program, "u_corners"));
+    }
+    getSidesUniform() {
+      return this.sidesUniform;
+    }
+    getCornersUniform() {
+      return this.cornersUniform;
+    }
+    getScaleUniform() {
+      return this.scaleUniform;
+    }
+    makeFragmentShader() {
+      return `
+        precision highp float;
+    
+        varying vec2 v_texcoord;
+        
+        uniform vec4 u_transform;
+        uniform vec4 u_color;
+        uniform float u_scale;
+        uniform bvec4 u_sides;
+        uniform bvec4 u_corners;
+    
+        void main() {
+          vec2 uv = v_texcoord;
+          vec2 nuv = uv - 0.5;
+          uv = abs(nuv);
+          gl_FragColor = u_color;
+          vec2 border = u_transform.zw;
+          if (abs(u_scale + 1.0) > 0.00001) {
+            border = vec2(min(u_scale * 2.0, 64.0));
+          }
+          border = 0.5 - 4.0 / border;
+          bvec2 sidep = greaterThanEqual(nuv, border);
+          bvec2 siden = lessThanEqual(nuv, -border);
+          if (((siden.x && !sidep.y && !siden.y && u_sides.x) || (sidep.y && !siden.x && !sidep.x && u_sides.y) || (sidep.x && !sidep.y && !siden.y && u_sides.z) || (siden.y && !siden.x && !sidep.x && u_sides.w)) ||
+              ((siden.x && sidep.y && u_corners.x) || (sidep.x && sidep.y && u_corners.y) || (sidep.x && siden.y && u_corners.z) || (siden.x && siden.y && u_corners.w))) {
+            gl_FragColor.rgb *= gl_FragColor.rgb;
+            gl_FragColor.a = 1.0;
+          }
+        }
+      `;
+    }
+  });
   // endregion
   return [modules, imodules, patch];
 })();
