@@ -342,7 +342,7 @@
         region.calcChunks().forEach(([x, y]) => {
           isValid = isValid || (gameMap.getChunk(x, y) !== undefined);
         });
-        validRegions.push(region);
+        if (isValid) validRegions.push(region);
       });
       const encoder = new TextEncoder();
       layerData.push(validRegions.length >> 8 & 0xFF, validRegions.length & 0xFF);
