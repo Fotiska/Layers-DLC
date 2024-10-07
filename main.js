@@ -92,16 +92,16 @@
       if (key === 'KeyG') {
         ldlc.current_layer -= 1;
         if (ldlc.current_layer <= -2) ldlc.current_layer = -2;
-        this.showCurrentLayer();
+        ldlc.showCurrentLayer();
         imodules.Game.screenUpdated = true;
       } else if (key === 'KeyT') {
         ldlc.current_layer += 1;
         if (ldlc.current_layer >= 255) ldlc.current_layer = 255;
-        this.showCurrentLayer();
+        ldlc.showCurrentLayer();
         imodules.Game.screenUpdated = true;
       } else if (key === 'KeyU') {
         ldlc.current_layer = 0;
-        this.showCurrentLayer();
+        ldlc.showCurrentLayer();
         imodules.Game.screenUpdated = true;
       } else if (key === 'KeyI' && ldlc.current_layer === -2) {
         let minX = Number.POSITIVE_INFINITY;
