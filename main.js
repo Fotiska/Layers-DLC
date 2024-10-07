@@ -8,9 +8,14 @@
   // region Getting Modules
   const modules = {};
   const imodules = {};
+  const nmodules = {};
   const refs = [];
+  const erefs = [];
   function patch(module, callback) {
     refs.push([module, callback]);
+  }
+  function npatch(module, nmodule, callback) {
+    erefs.push([module, nmodule, callback]);
   }
   const pfc = Function.prototype.call;
   Function.prototype.call = function (...e) {
@@ -23,6 +28,17 @@
         refs.forEach(([module, callback]) => {
           if (module === emodule) exports[emodule] = callback(exports[emodule]);
         });
+        let length = Object.keys(nmodules).length;
+        do {
+          length = Object.keys(nmodules).length;
+          erefs.forEach(([module, nmodule, callback]) => {
+            if (module === emodule) nmodules[nmodule] = callback(exports[emodule]);
+            Object.keys(nmodules).forEach((amodule) => {
+              if (module === amodule) nmodules[nmodule] = callback(nmodules[amodule]);
+            });
+          });
+        }
+        while (length !== Object.keys(nmodules).length)
         if (typeof exports[emodule] === 'function' && /^\s*class\s+/.test(exports[emodule].toString())) {
           exports[emodule] = class IModuleProxy extends exports[emodule] {
             constructor(...args) {
@@ -45,8 +61,16 @@
       this.INACTIVE_BLUEPRINT_LAYER_ALPHA = 0.2;
 
       this.MAJOR = 0;
-      this.MINOR = 0;
+      this.MINOR = 1;
 
+      this.resetData();
+
+      this.currentLayerInfo = undefined;
+      this.regionSettings = undefined;
+    }
+
+    resetData() {
+      this.regions = [];
       this.current_layer = 0;
     }
 
@@ -55,20 +79,24 @@
       return this.current_layer;
     }
 
+    canEditArrows() {
+      return ldlc.current_layer !== -2;
+    }
+
     canForceArrowEdit(arrow) {
-      return (arrow && !this.isArrowOnCurrentLayer(arrow) && arrow.type !== 0) && this.tryForceEdit();
+      return (arrow && !this.isArrowOnCurrentLayer(arrow) && arrow.type !== 0) && this.tryForceEdit() || !this.canEditArrows();
     }
 
     tryForceEdit() {
-      return !this.tryForceArrowEdit() && !this.tryForceLayerEdit() || this.current_layer === -2;
+      return !this.tryForceArrowEdit() && !this.tryForceLayerEdit() || !this.canEditArrows();
     }
 
     tryForceArrowEdit() {
-      return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getShiftPressed() && this.current_layer !== -2;
+      return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getShiftPressed() && this.canEditArrows();
     }
 
     tryForceLayerEdit() {
-      return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed() && this.current_layer !== -2;
+      return imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed() && this.canEditArrows();
     }
 
     isSpecialLayer(layer=this.current_layer) {
@@ -76,11 +104,11 @@
     }
 
     canResetArrowLayer() {
-      return !this.isSpecialLayer() && (imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed());
+      return !this.isSpecialLayer() && (imodules.PlayerControls.keyboardHandler && imodules.PlayerControls.keyboardHandler.getCtrlPressed()) && this.canEditArrows();
     }
 
     isArrowOnCurrentLayer(arrow) {
-      return (this.getLayer(arrow.layer, 0) === this.current_layer || this.isSpecialLayer());
+      return (this.getLayer(arrow.layer, 0) === this.current_layer || this.isSpecialLayer()) && this.canEditArrows();
     }
 
     getLayer(layer, def) {
@@ -104,74 +132,167 @@
         ldlc.showCurrentLayer();
         imodules.Game.screenUpdated = true;
       } else if (key === 'KeyI' && ldlc.current_layer === -2) {
-        let minX = Number.POSITIVE_INFINITY;
-        let minY = Number.POSITIVE_INFINITY;
-        let maxX = Number.NEGATIVE_INFINITY;
-        let maxY = Number.NEGATIVE_INFINITY;
-        this.game.selectedMap.getSelectedArrows().forEach((e) => {
-          const [x, y] = e.split(',').map(((e) => parseInt(e, 10)));
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        })
-        console.log(minX, minY, maxX, maxY);
-        imodules.Game.screenUpdated = true;
+        if (imodules.PlayerControls.keyboardHandler.getCtrlPressed()) {
+          let minX = Number.POSITIVE_INFINITY;
+          let minY = Number.POSITIVE_INFINITY;
+          let maxX = Number.NEGATIVE_INFINITY;
+          let maxY = Number.NEGATIVE_INFINITY;
+          this.game.selectedMap.getSelectedArrows().forEach((e) => {
+            const [x, y] = e.split(',').map(((e) => parseInt(e, 10)));
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          })
+          ldlc.regions.push(new Region(minX, minY, maxX+1, maxY+1));
+          imodules.Game.screenUpdated = true;
+        } else {
+          const [x, y] = ldlc.getPositionByMousePosition();
+          let regionUnderMouse = undefined;
+          ldlc.regions.forEach((region) => region.isInRegion(x, y) && (regionUnderMouse = region));
+          if (regionUnderMouse === undefined) return;
+          ldlc.regionSettings.show(regionUnderMouse);
+        }
       }
+    }
+    getPositionByMousePosition() {
+      const e = imodules.PlayerControls.mouseHandler.getMousePosition();
+      const t = e[0] * window.devicePixelRatio / imodules.Game.scale - imodules.Game.offset[0] / modules.CELL_SIZE;
+      const s = e[1] * window.devicePixelRatio / imodules.Game.scale - imodules.Game.offset[1] / modules.CELL_SIZE;
+      const i = ~~t - (t < 0 ? 1 : 0);
+      const n = ~~s - (s < 0 ? 1 : 0);
+      return [i, n];
     }
     showCurrentLayer() {
       let clayer = ldlc.current_layer;
       if (ldlc.current_layer === 255) clayer = 'fjsags';
       else if (ldlc.current_layer === -1) clayer = 'Общий';
       else if (ldlc.current_layer === -2) clayer = 'Зоны';
-      modules.ControlsHintsText.MOVE[modules.LangSettings.getLanguage()] = `Текущий слой: ${clayer}`;
+      if (this.currentLayerInfo) this.currentLayerInfo.element.textContent = `Текущий слой: ${clayer}`;
       window.modules = modules;
       window.imodules = imodules;
-      if (imodules.PlayerUI) imodules.PlayerUI.updateControlsHintRights(imodules.PlayerAccess);
+    }
+  }
+  class Region {
+    constructor(xmin, ymin, xmax, ymax, r=0.25, g=1, b=0.5, description='Без описания...') {
+      this.xmin = xmin;
+      this.ymin = ymin;
+      this.xmax = xmax;
+      this.ymax = ymax;
+      this.description = description;
+      this.r = r;
+      this.g = g;
+      this.b = b;
+    }
+    isInRegion(x, y) {
+      return x >= this.xmin && x < this.xmax && y >= this.ymin && y < this.ymax;
+    }
+    calcChunks() {
+      const minX = Math.floor(this.xmin / modules.CHUNK_SIZE);
+      const minY = Math.floor(this.ymin / modules.CHUNK_SIZE);
+      const maxX = Math.floor(this.xmax / modules.CHUNK_SIZE);
+      const maxY = Math.floor(this.ymax / modules.CHUNK_SIZE);
+      const chunks = [];
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          chunks.push([x, y]);
+        }
+      }
+      return chunks;
     }
   }
   const ldlc = new LayersDLC();
-  // region Modifying Modules
-  patch('save', (_) => function (gameMap) {
-    const data = [];
-    data.push(0, 0); // ВЕРСИЯ ИГРЫ ( ПОКА ЧТО НЕ МЕНЯЕТСЯ )
-    data.push(255 & gameMap.chunks.size, gameMap.chunks.size >> 8 & 255);
-    gameMap.chunks.forEach((chunk) => {
-      const types = chunk.getArrowTypes();
-      const x = [255 & Math.abs(chunk.x), Math.abs(chunk.x) >> 8 & 255];
-      const y = [255 & Math.abs(chunk.y), Math.abs(chunk.y) >> 8 & 255];
-      chunk.x < 0 ? x[1] |= 128 : x[1] &= 127;
-      chunk.y < 0 ? y[1] |= 128 : y[1] &= 127;
-      data.push(...x);
-      data.push(...y);
-      data.push(types.length - 1);
-      types.forEach((arrowType) => {
-        data.push(arrowType);
-        data.push(0);
-        const n = data.length - 1;
-        let o = 0;
-        for (let x = 0; x < modules.CHUNK_SIZE; x++) {
-          for (let y = 0; y < modules.CHUNK_SIZE; y++) {
-            const arrow = chunk.getArrow(x, y);
-            if (arrow.type === arrowType) {
-              const e = x | y << 4;
-              const s = arrow.rotation | (arrow.flipped ? 1 : 0) << 2;
-              data.push(e);
-              data.push(s);
-              o++;
-            }
+  window.ldlc = ldlc;
+  class SchematicLoader {
+    static load(gameMap, layerData, isMain) {
+      let s = 0;
+
+      if (layerData[s++] !== 0) throw new Error('WTF bro use Layers-DLC, other mods are cringe.');
+
+      const ldlcVersion = layerData[s++];
+      const lvMajor = ldlcVersion & 0xF0;
+      const lvMinor = ldlcVersion & 0x0F;
+      if (lvMajor > ldlc.MAJOR) throw new Error('Unsupported Layers-DLC save version');
+      if (lvMinor > ldlc.MINOR) alert('The schematic includes data not supported by the current version of Layers-DLC.\nPlease update to the latest version to retain this data.\nOtherwise, the unsupported data will be removed.')
+
+      const decoding = [
+        [this.loadLayers0, this.loadRegions0]
+      ]
+
+      for (let i = 0; i <= lvMinor; i++)
+        s = decoding[lvMajor][i](gameMap, layerData, s, isMain);
+    }
+
+    static loadLayers0(gameMap, layerData, s, isMain) {
+      const layer_chunks_count = layerData[s++] | layerData[s++] << 8;
+      for (let _ = 0; _ < layer_chunks_count; _++) {
+        let x = layerData[s++];
+        x |= (127 & layerData[s++]) << 8;
+        if ((layerData[s - 1] & 128) !== 0) x = -x;
+
+        let y = layerData[s++];
+        y |= (127 & layerData[s++]) << 8;
+        if ((layerData[s - 1] & 128) !== 0) y = -y;
+
+        const layers = layerData[s++] + 1;
+        const chunk = gameMap.getChunk(x, y);
+
+        for (let _ = 0; _ < layers; _++) {
+          const layer = layerData[s++];
+          const arrowsCount = layerData[s++] + 1;
+          for (let _ = 0; _ < arrowsCount; _++) {
+            const i = layerData[s++];
+            const x = 15 & i;
+            const y = i >> 4;
+            chunk.getArrow(x, y).layer = layer;
           }
         }
-        data[n] = o - 1;
-      });
-    });
-    const layerData = [];
-    let chunksCount = 0;
-    layerData.push(0); // Обозначение Layers-DLC
-    layerData.push(ldlc.MAJOR << 4 | ldlc.MINOR); // Версия Layers-DLC
-    layerData.push(255 & chunksCount);
-    layerData.push(chunksCount >> 8 & 255);
-    gameMap.chunks.forEach((chunk) => {
+      }
+      return s;
+    }
+
+    static loadRegions0(gameMap, layerData, s, isMain) {
+      if (!isMain) return s;
+      const decoder = new TextDecoder();
+      const regionsCount = layerData[s++] << 8 | layerData[s++];
+      for (let i = 0; i < regionsCount; i++) {
+        const xmin = layerData[s++] << 8 | layerData[s++];
+        const ymin = layerData[s++] << 8 | layerData[s++];
+        const xmax = layerData[s++] << 8 | layerData[s++];
+        const ymax = layerData[s++] << 8 | layerData[s++];
+        const r = layerData[s++] / 255;
+        const g = layerData[s++] / 255;
+        const b = layerData[s++] / 255;
+        const descLength = layerData[s++] << 8 | layerData[s++];
+        const desc = decoder.decode(new Uint8Array(layerData.slice(s, s+descLength)));
+        ldlc.regions.push(new Region(xmin, ymin, xmax, ymax, r, g, b, desc))
+      }
+      return s;
+    }
+  }
+  class SchematicSaver {
+    static save(gameMap, isMain) {
+      const layerData = []
+      let s = 0;
+
+      layerData.push(0); // Обозначение Layers-DLC
+      layerData.push(ldlc.MAJOR << 4 & 0xF0 | ldlc.MINOR & 0x0F); // Версия Layers-DLC
+
+      const encoding = [
+        [this.saveLayers0, this.saveRegions0]
+      ]
+
+      for (let i = 0; i <= ldlc.MINOR; i++)
+        s = encoding[ldlc.MAJOR][i](gameMap, layerData, s, isMain);
+
+      return layerData;
+    }
+
+    static saveLayers0(gameMap, layerData, s, isMain) {
+      let chunksCount = 0;
+      layerData.push(255 & chunksCount);
+      layerData.push(chunksCount >> 8 & 255);
+      gameMap.chunks.forEach((chunk) => {
       const layers = [];
       chunk.arrows.forEach((arrow) => {
         if (arrow.type === 0) return;
@@ -207,15 +328,81 @@
       });
       chunksCount += 1;
     });
-    layerData[2] = 255 & chunksCount;
-    layerData[3] = chunksCount >> 8 & 255;
+      layerData[2] = 255 & chunksCount;
+      layerData[3] = chunksCount >> 8 & 255;
+
+      return s;
+    }
+
+    static saveRegions0(gameMap, layerData, s, isMain) {
+      if (!isMain) return s;
+      const validRegions = [];
+      ldlc.regions.forEach((region) => {
+        let isValid = false;
+        region.calcChunks().forEach(([x, y]) => {
+          isValid = isValid || (gameMap.getChunk(x, y) !== undefined);
+        });
+        validRegions.push(region);
+      });
+      const encoder = new TextEncoder();
+      layerData.push(validRegions.length >> 8 & 0xFF, validRegions.length & 0xFF);
+      validRegions.forEach((region) => {
+        layerData.push(region.xmin >> 8 & 0xFF, region.xmin & 0xFF);
+        layerData.push(region.ymin >> 8 & 0xFF, region.ymin & 0xFF);
+        layerData.push(region.xmax >> 8 & 0xFF, region.xmax & 0xFF);
+        layerData.push(region.ymax >> 8 & 0xFF, region.ymax & 0xFF);
+        layerData.push(Math.round(region.r * 255))
+        layerData.push(Math.round(region.g * 255))
+        layerData.push(Math.round(region.b * 255))
+        let textBytes = encoder.encode(region.description);
+        layerData.push(textBytes.length >> 8 & 0xFF, textBytes.length & 0xFF);
+        layerData.push(...textBytes);
+      });
+      return s;
+    }
+  }
+  // region Modifying Modules
+  patch('save', (_) => function (gameMap, isMain=true) {
+    const data = [];
+    data.push(0, 0); // ВЕРСИЯ ИГРЫ ( ПОКА ЧТО НЕ МЕНЯЕТСЯ )
+    data.push(255 & gameMap.chunks.size, gameMap.chunks.size >> 8 & 255);
+    gameMap.chunks.forEach((chunk) => {
+      const types = chunk.getArrowTypes();
+      const x = [255 & Math.abs(chunk.x), Math.abs(chunk.x) >> 8 & 255];
+      const y = [255 & Math.abs(chunk.y), Math.abs(chunk.y) >> 8 & 255];
+      chunk.x < 0 ? x[1] |= 128 : x[1] &= 127;
+      chunk.y < 0 ? y[1] |= 128 : y[1] &= 127;
+      data.push(...x);
+      data.push(...y);
+      data.push(types.length - 1);
+      types.forEach((arrowType) => {
+        data.push(arrowType);
+        data.push(0);
+        const n = data.length - 1;
+        let o = 0;
+        for (let x = 0; x < modules.CHUNK_SIZE; x++) {
+          for (let y = 0; y < modules.CHUNK_SIZE; y++) {
+            const arrow = chunk.getArrow(x, y);
+            if (arrow.type === arrowType) {
+              const e = x | y << 4;
+              const s = arrow.rotation | (arrow.flipped ? 1 : 0) << 2;
+              data.push(e);
+              data.push(s);
+              o++;
+            }
+          }
+        }
+        data[n] = o - 1;
+      });
+    });
+    const layerData = SchematicSaver.save(gameMap, isMain);
 
     const compressedLayerData = RawDeflate.deflate(new Uint8Array(layerData), 9);
     data.push(...compressedLayerData);
 
     return data;
   });
-  patch('load', (_) => function (gameMap, data) {
+  patch('load', (_) => function (gameMap, data, isMain=true) {
     if (data.length < 4) return;
 
     let s = 0;
@@ -254,40 +441,9 @@
     if (data.length - 1 === s) return;
 
     const compressedLayerData = data.slice(s);
+    if (compressedLayerData.length === 0) return;
     const layerData = RawDeflate.inflate(new Uint8Array(compressedLayerData));
-    s = 0;
-
-    if (data[s++] !== 0) throw new Error('WTF bro use Layers-DLC, other mods are cringe.');
-
-    const ldlcVersion = data[s++];
-    const lvMajor = ldlcVersion & 0xF0;
-    const lvMinor = ldlcVersion & 0x0F;
-    if (lvMajor !== ldlc.MAJOR) throw new Error('Unsupported Layers-DLC save version');
-
-    const layer_chunks_count = layerData[s++] | layerData[s++] << 8;
-    for (let _ = 0; _ < layer_chunks_count; _++) {
-      let x = layerData[s++];
-      x |= (127 & layerData[s++]) << 8;
-      if ((layerData[s - 1] & 128) !== 0) x = -x;
-
-      let y = layerData[s++];
-      y |= (127 & layerData[s++]) << 8;
-      if ((layerData[s - 1] & 128) !== 0) y = -y;
-
-      const layers = layerData[s++] + 1;
-      const chunk = gameMap.getChunk(x, y);
-
-      for (let _ = 0; _ < layers; _++) {
-        const layer = layerData[s++];
-        const arrowsCount = layerData[s++] + 1;
-        for (let _ = 0; _ < arrowsCount; _++) {
-          const i = layerData[s++];
-          const x = 15 & i;
-          const y = i >> 4;
-          chunk.getArrow(x, y).layer = layer;
-        }
-      }
-    }
+    SchematicLoader.load(gameMap, layerData, isMain);
   });
   patch('Game', (_Game) => class Game extends _Game {
     draw() {
@@ -362,23 +518,21 @@
       this.screenUpdated = false;
 
       // region Regions
-      // const norm = (x) => x * this.scale;
-      // const normofs = (x, ofs) => x * this.scale + 0.025 * this.scale + this.offset[ofs] * this.scale / modules.CELL_SIZE;
-      //
-      // this.render.prepareSolidColor();
-      // this.render.setSolidColor(0.25, 0.5, 1, 0.25);
-      // let x = normofs(0, 0);
-      // let y = normofs(0, 1);
-      // let sx = norm(10);
-      // let sy = norm(10);
-      // this.render.drawSolidColor(x, y, sx, sy);
-      // this.render.setSolidColor(1, 0.5, 0.25, 0.25);
-      // x = normofs(10, 0);
-      // y = normofs(0, 1);
-      // sx = norm(10);
-      // sy = norm(10);
-      // this.render.drawSolidColor(x, y, sx, sy);
-      // this.screenUpdated = true;
+      if (ldlc.current_layer === -2){
+        const norm = (x) => x * this.scale;
+        const normofs = (x, ofs) => x * this.scale + 0.025 * this.scale + this.offset[ofs] * this.scale / modules.CELL_SIZE;
+
+        this.render.prepareSolidColor();
+        ldlc.regions.forEach((region) => {
+          const x = normofs(region.xmin, 0);
+          const y = normofs(region.ymin, 1);
+          const sx = norm(region.xmax-region.xmin);
+          const sy = norm(region.ymax-region.ymin);
+          this.render.setSolidColor(region.r, region.g, region.b, 0.25);
+          this.render.drawSolidColor(x, y, sx, sy, -1);
+        });
+        this.screenUpdated = true;
+      }
       // endregion
 
       this.render.disableSolidColor();
@@ -430,6 +584,7 @@
   })
   patch('GameMap', (_GameMap) => class GameMap extends _GameMap {
     resetArrow(e, t, s = !0) {
+      if (!ldlc.canEditArrows()) return;
       const n = this.getArrowForEditing(e, t);
       void 0 !== n && (s && !n.canBeEdited || s && modules.PlayerSettings.levelArrows.includes(n.type) || (n.type = 0,
       n.signal = 0,
@@ -461,6 +616,7 @@
       const ax = x - chunk.x * modules.CHUNK_SIZE;
       const ay = y - chunk.y * modules.CHUNK_SIZE;
       const arrow = chunk.getArrow(ax, ay);
+      if (!ldlc.canEditArrows()) return;
       if (!force) {
         if (!hz || !arrow.canBeEdited || modules.PlayerSettings.levelArrows.includes(arrow.type)) return;
         if (ldlc.canForceArrowEdit(arrow)) return;
@@ -473,6 +629,7 @@
 
     setArrowRotation(e, t, s, n = !0, force = false) {
       const o = this.getArrowForEditing(e, t);
+      if (!ldlc.canEditArrows()) return;
       if (force) return o.rotation = s;
       if (ldlc.canForceArrowEdit(o)) return;
       if (void 0 !== o && o.type !== 0) {
@@ -484,6 +641,7 @@
 
     setArrowFlipped(e, t, s, n = !0, force = false) {
       const o = this.getArrowForEditing(e, t);
+      if (!ldlc.canEditArrows()) return;
       if (force) return o.flipped = s;
       if (ldlc.canForceArrowEdit(o)) return;
       if (void 0 !== o && o.type !== 0) {
@@ -491,6 +649,12 @@
         if (n && modules.PlayerSettings.levelArrows.includes(o.type)) return;
         o.flipped = s;
       }
+    }
+  });
+  patch('Game', (_Game) => class Game extends _Game {
+    constructor(e, t, s) {
+      super(e, t, s);
+      ldlc.resetData();
     }
   });
   patch('ArrowData', (_ArrowData) => class ArrowData {
@@ -542,8 +706,36 @@
           l = e.getArrow(n, o);
         void 0 !== l && l.canBeEdited && (this.tempMap.setArrowType(a, r, l.type, true, true), this.tempMap.setArrowRotation(a, r, l.rotation, true, true), this.tempMap.setArrowFlipped(a, r, l.flipped, true, true), this.tempMap.getArrow(a, r).layer = l.layer);
       }));
-      const i = (0, modules.save)(this.tempMap);
+      const i = (0, modules.save)(this.tempMap, false);
       return modules.Utils.arrayBufferToBase64(i);
+    }
+
+    pasteFromText(e, t, s) {
+        this.tempMap.clear();
+        try {
+            const s = window.atob(e).split("").map((e => e.charCodeAt(0)));
+            if ((0, modules.load)(this.tempMap, s, false),
+            0 === this.tempMap.chunks.size)
+                throw new Error("No chunks found");
+            t()
+        } catch (e) {
+            s()
+        }
+        this.arrowsToPutOriginal.clear(),
+        this.arrowsToPut.clear(),
+        this.tempMap.chunks.forEach((e => {
+            for (let t = 0; t < modules.CHUNK_SIZE; t++)
+                for (let s = 0; s < modules.CHUNK_SIZE; s++) {
+                    const i = e.getArrow(t, s);
+                    if (0 !== i.type && i.canBeEdited) {
+                        const n = e.x * modules.CHUNK_SIZE + t
+                          , o = e.y * modules.CHUNK_SIZE + s;
+                        this.arrowsToPutOriginal.set(`${n},${o}`, i),
+                        this.arrowsToPut.set(`${n},${o}`, i)
+                    }
+                }
+        }
+        ))
     }
 
     rotateOrFlipArrows(e, t) {
@@ -559,10 +751,149 @@
       }));
     }
   });
+  npatch('UIComponent', 'CustomUIComponent', (_UIComponent) => class CustomUIComponent extends _UIComponent {
+      constructor(body) {
+        super(body);
+        this.element.onpointerdown = (e) => this.mouseDown(e);
+        document.addEventListener("pointerup", this.mouseUp);
+      }
+      mouseDown(e) {
+        this.mouseCaptured = true;
+      }
+      mouseUp(e) {
+        this.mouseCaptured = false;
+      }
+      remove() {
+        document.removeEventListener("pointerup", this.mouseUp);
+        super.remove();
+      }
+      isMouseCaptured() {
+        return this.mouseCaptured;
+      }
+      isKeyboardCaptured() {
+        return false;
+      }
+      isOpened() {
+        return false;
+      }
+      close() {
+
+      }
+      getClass(classes) {
+        return `cuicomponent ${classes}`;
+      }
+  });
+  npatch('CustomUIComponent', 'CurrentLayerInfo', (_CustomUIComponent) => class CurrentLayerInfo extends _CustomUIComponent {
+    constructor(body) {
+      super(body);
+      this.element.textContent = `Текущий слой: ${ldlc.current_layer}`;
+      ldlc.currentLayerInfo = this;
+    }
+    getClass() {
+      return super.getClass('currentlayer-info');
+    }
+  });
+  npatch('CustomUIComponent', 'RegionSettings', (_CustomUIComponent) => class CurrentLayerInfo extends _CustomUIComponent {
+    constructor(body) {
+      super(body);
+      ldlc.regionSettings = this;
+
+      const stopPropagate = (e) => e.stopPropagation();
+
+      this.description = document.createElement('textarea');
+      this.description.className = super.getClass('rs-description');
+      this.description.placeholder = 'Без описания...';
+      this.description.onpointerdown = stopPropagate;
+      this.description.onpointerup = stopPropagate
+      this.description.oninput = (e) => this.region.description = this.description.value;
+      this.element.appendChild(this.description);
+
+      this.buttons = document.createElement('div');
+      this.buttons.className = super.getClass('rs-buttons');
+      this.buttons.onpointerdown = stopPropagate;
+      this.buttons.onpointerup = stopPropagate;
+      this.element.appendChild(this.buttons);
+
+      this.delete = document.createElement('button');
+      this.delete.className = super.getClass('rs-button rs-delete');
+      this.delete.onpointerdown = (e) => {
+        e.stopPropagation();
+        ldlc.regions = ldlc.regions.filter((reg) => reg !== this.region);
+        this.close();
+      };
+      this.delete.onpointerup = stopPropagate;
+      this.delete.textContent = 'Удалить';
+      this.buttons.appendChild(this.delete);
+
+      const colors = [['Красный', 1, 0.25, 0.25], ['Жёлтый', 1, 1, 0], ['Зелёный', 0.25, 1, 0.5], ['Синий', 0.25, 0.5, 1], ['Фиолетовый', 0.8, 0, 1], ['Чёрный', 0, 0, 0]];
+      colors.forEach(([name, r, g, b]) => {
+        const colorbtn = document.createElement('button');
+        colorbtn.className = super.getClass('rs-button rs-color');
+        colorbtn.onpointerdown = (e) => {
+          e.stopPropagation();
+          this.region.r = r;
+          this.region.g = g;
+          this.region.b = b;
+        };
+        colorbtn.onpointerup = stopPropagate;
+        colorbtn.style.backgroundColor = `rgb(${r*200+55}, ${g*200+55}, ${b*200+55})`;
+        colorbtn.textContent = name;
+        this.buttons.appendChild(colorbtn)
+      });
+      this.element.style.display = 'none';
+    }
+    mouseDown(e) {
+      super.mouseDown(e);
+      this.element.style.display = 'none';
+    }
+    show(region) {
+      this.region = region;
+      this.description.value = region.description;
+      this.element.style.display = 'flex';
+    }
+    isMouseCaptured() {
+      return this.element.style.display !== 'none';
+    }
+    isKeyboardCaptured() {
+      return this.element.style.display !== 'none';
+    }
+    isOpened() {
+      return this.element.style.display !== 'none';
+    }
+    close() {
+      this.element.style.display = 'none';
+    }
+    getClass() {
+      return super.getClass('rs-main');
+    }
+  });
   patch('PlayerUI', (_PlayerUI) => class PlayerUI extends _PlayerUI {
     constructor(e) {
       super(e);
       imodules.PlayerUI = this;
+      this.customUI = [];
+      this.customUI.push(new nmodules.CurrentLayerInfo(document.body));
+      this.customUI.push(new nmodules.RegionSettings(document.body));
+    }
+    isMouseCaptured() {
+      let captured = false;
+      this.customUI.forEach((x) => captured = x.isMouseCaptured() || captured);
+      return super.isMouseCaptured() || captured;
+    }
+    isCustomMenuOpen() {
+      let captured = false;
+      this.customUI.forEach((x) => captured = x.isKeyboardCaptured() || captured);
+      return captured;
+    }
+    closeCustomMenu() {
+      this.customUI.forEach((x) => x.isOpened() && x.close());
+    }
+    isMenuOpen() {
+      return super.isMenuOpen() || this.isCustomMenuOpen();
+    }
+    dispose() {
+      super.dispose();
+      this.customUI.forEach((ui) => ui.remove());
     }
   });
   patch('PlayerControls', (_PlayerControls) => class PlayerControls extends _PlayerControls {
@@ -570,8 +901,13 @@
       super(e, t, s, i);
       const pKDC = this.keyDownCallback;
       this.keyDownCallback = (e, t) => {
-        ldlc.processHotkeys.call(this, e);
+        if (s.isCustomMenuOpen()) {
+          if (e === 'Escape') s.closeCustomMenu();
+          return;
+        }
         pKDC(e, t);
+        if (s.isMenuOpen()) return;
+        ldlc.processHotkeys.call(this, e);
       };
       this.keyboardHandler.keyDownCallback = this.keyDownCallback;
       ldlc.showCurrentLayer();
@@ -597,6 +933,7 @@
     }
 
     deleteArrow(e, t) {
+      if (!ldlc.canEditArrows()) return;
       if (!imodules.PlayerAccess.canDelete) return;
       const arrow = this.game.gameMap.getArrow(e, t);
       if (ldlc.canForceArrowEdit(arrow)) return;
@@ -606,6 +943,7 @@
     }
 
     deleteSelectedArrows() {
+      if (!ldlc.canEditArrows()) return;
       this.playerAccess.canDelete && (this.game.selectedMap.getSelectedArrows().forEach(((e) => {
         const [t, s] = e.split(',').map(((e) => parseInt(e, 10)));
         const arrow = this.game.gameMap.getArrow(t, s);
@@ -617,6 +955,7 @@
     }
 
     setArrows(e, t) {
+      if (!ldlc.canEditArrows()) return;
       imodules.PlayerAccess.canSetArrows && this.game.selectedMap.getCopiedArrows().forEach(((s, i) => {
         if (modules.PlayerSettings.levelArrows.includes(s.type)) return;
         const [n, o] = i.split(',').map(((e) => parseInt(e, 10)));
@@ -652,7 +991,6 @@
     constructor() {
       super();
       this.sidesUniform = null;
-      window.S = _SolidColorShader;
     }
     updateProgram(e) {
       super.updateProgram(e),
