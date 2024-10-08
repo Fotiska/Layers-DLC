@@ -265,6 +265,7 @@
         const b = layerData[s++] / 255;
         const descLength = layerData[s++] << 8 | layerData[s++];
         const desc = decoder.decode(new Uint8Array(layerData.slice(s, s+descLength)));
+        s += descLength;
         ldlc.regions.push(new Region(xmin, ymin, xmax, ymax, r, g, b, desc))
       }
       return s;
